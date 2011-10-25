@@ -1,0 +1,38 @@
+OAuth for Express/Node.js
+
+This is my implementation of OAuth signature verification for the Express Node.js framework. It consists of three middleware functions that, respectively: parse OAuth parameters from an HTTP Authorization header or the query & body; verify an OAuth signature on a request, including checking for duplicated nonce/timestamp pairs; and verify the oauth_body_hash parameter.
+
+Typically the header parsing will be performed at app level:
+
+    var oauth = require('./oauth.js');
+    app.use(oauth.parseHeader());
+
+And the signature verification at the router level:
+
+    app.get('/ping', oauth.verifySignature(lookup), function (res, req) {
+        :
+    });
+
+oauth.verifySignature takes two arguments:
+
+The first is a lookup function for the client and token identifiers; the first parameter is the request; the second, a string containing either 'client' or 'token', the third is the identifier to lookup and the fourth is a callback function. You should lookup the matching secret for the given identifier, and call the callback function with it when you have it. If you can't find a result, call the callback function with no arguments (or undefined).
+
+The second parameter is optional, and should be a Redis client object (as returned from redis.createClient()). This will be used to store timestamp/nonce pairs (in the form "OAuth :timestamp :nonce" => "SEEN"), with expiry set on them equivalent to the minimum timestamp allowed by the implementation.
+
+The third middleware is oauth.verifyBody. This takes no arguments; it verifies the oauth_body_hash parameter in the request matches the digest of the request body (if appropriate).
+
+My way of using this is via stacked middleware:
+
+    var oauth = require('./oauth.js');
+    app.use(oauth.parseHeader());
+
+    var verifyOAuthRequest = [
+        oauth.verifyBody(),
+        oauth.verifySignature(function (req, type, identifier, callback) {
+            :
+        }, redisClient)
+    ];
+
+    app.get('/test', verifyOAuthRequest, function (req, res) {
+        :
+    });

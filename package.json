@@ -1,0 +1,9 @@
+{
+    "name": "shelby-api"
+  , "version": "0.0.1"
+  , "private": true
+  , "dependencies": {
+     "redis" : "=0.6.7"
+    , "mongodb" : "=0.9.6-16"
+  }
+}

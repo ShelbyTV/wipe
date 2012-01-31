@@ -3,10 +3,10 @@ if (!process.env.NODE_ENV){
   process.exit();
 } 
 
-if (!process.argv[2]){
+/*if (!process.argv[2]){
   console.error('usage : node wipe.js <user_nickname>');
   process.exit();
-}
+}*/
 
 var USER_NICKNAME = process.argv[2];
 
@@ -17,16 +17,12 @@ var conf = require('./conf')
 , redis = require('redis')
 , redis_client = redis.createClient(6379, conf.db[ENV].redis_host)
 , doQuery = require('./lib/do_query.js')
+, doBigFind = require('./lib/do_big_find.js')
 , doDelete = require('./lib/do_delete.js')
 , equipFields = require('./lib/equip_fields.js');
 
-console.log('===================')
-console.log('Welcome to ==WIPE==');
-console.log('===================');
-console.log('Commencing wipe of', USER_NICKNAME);
-console.log('Connecting to mongo replica sets...');
-console.log('...this will take about 15-20 seconds');
-console.log('===================');
+console.log('Recovering twitter ids -> redis set');
+console.log('Connecting to Mongo');
 
 // Connect to DB 
 db.open(function(e, db_client){
@@ -36,14 +32,12 @@ db.open(function(e, db_client){
     process.exit();
   }
 
-  console.log('db conected');
 
   function encodeId(id){
     try {
       return db_client.bson_serializer.ObjectID.createFromHexString(id);
     } catch (e){
       console.log(e);
-      //res.sendError({code:401, msg:'Bad Object ID: '+e.message}); 
     }
   }
 
@@ -56,6 +50,16 @@ db.open(function(e, db_client){
       nickname : nickname
     };
     doQuery(req, null, db_client, cb);
+  };
+
+  var getUsers = function(cb){
+    var req = {};
+    req.query_collection = 'users';
+    //req.query_options = {limit:100};
+    req.query_options = {};
+    //req.query_options.fields = equipFields(conf, req.query_collection);
+    req.query_params = {};
+    doBigFind(req, null, db_client, cb);
   };
 
   var getChannelIds = function(user_id, cb){
@@ -79,8 +83,7 @@ db.open(function(e, db_client){
     var req = {};
     req.query_collection = 'broadcasts';
     req.query_params = {
-      //channel_id : channel_id
-      a : channel_id
+      channel_id : channel_id
     }
     doDelete(req, null, db_client, cb);
   };
@@ -106,9 +109,7 @@ db.open(function(e, db_client){
    
   var wipeUserMongo = function(user_id, callback){
     getChannelIds(user_id, function(chids){
-      console.log('wiped chans', chids);
       chids.forEach(function(chid){
-        console.log('remming', chid, 'bcasts');
         remChannelBcasts(chid, function(e, bwipes){
           console.log('wiped', bwipes, 'broadcasts');
           remUsrChannels(user_id, function(e, chwipes){
@@ -129,12 +130,6 @@ db.open(function(e, db_client){
     'tumblr':'tumblr_users'
   };
 
-  var authToInfoMap = {
-    'twitter':'stream_users',
-    'facebook':'fbusr',
-    'tumblr':'tumblr_users'
-  };
-
 
   var rAuthDel = function(auths, cb){
     if (!auths.length){
@@ -142,13 +137,8 @@ db.open(function(e, db_client){
     }
     var _auth = auths.shift();
     var redisSet = authToRedisMap[_auth.provider];
-    var infoKey = authToInfoMap[_auth.provider]+':'+_auth.uid+':info';
     redis_client.srem(redisSet, _auth.uid, function(){
-      console.log('srem', _auth.provider, arguments);
-      redis_client.del(infoKey, function(){
-        console.log('del', _auth.provider, arguments);
-        return rAuthDel(auths, cb);
-      });
+      return rAuthDel(auths, cb);
     });
   };
 
@@ -164,13 +154,30 @@ db.open(function(e, db_client){
       });
     });
   };
-  
-  wipeUserRedis(USER_NICKNAME, function(user){
-    console.log('redis wiped');
-    wipeUserMongo(user._id, function(){
-      console.error(user.nickname, 'wiped. Bye :-]');
-      console.log('===================');
-      process.exit();
+
+  var addToRedisSet = function(uid){
+    redis_client.sadd('stream_users', uid, function(e, r){
+      if (r && !e){
+        console.log('added', uid);
+      }
     });
+  };
+  
+  getUsers(function(data){
+    console.log('num users', data.length);
+    var emails = [];
+    var num_tw_users = 0;
+    data.forEach(function(user){
+      if(user.authentications){
+        user.authentications.forEach(function(auth){
+          if (auth.provider==='twitter'){
+            num_tw_users += 1;
+            //addToRedisSet(auth.uid);
+          }
+        });
+      }
+    });
+    console.log('num twitter users', num_tw_users);
   });
+
 });

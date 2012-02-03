@@ -37,5 +37,5 @@ app.post('/login', routes.login);
 app.get('/wipe',require_login, routes.render_wipe);
 app.post('/wipe',require_login, routes.wipe_user);
 
-app.listen(3000);
+app.listen(3006);
 console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);

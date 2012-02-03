@@ -5,7 +5,7 @@
 
 var config = require('../config.js');
 var require_login = require('../lib/require_login.js');
-var wipe_user = require('../lib/wipe_user.js');
+var wipe_user = require('../wipe_interface.js');
 
 exports.index = function(req, res){
   res.render('utils');
@@ -26,8 +26,8 @@ exports.render_wipe = function(req, res){
 };
 
 exports.wipe_user = function(req, res){
-  wipe_user(req.body.username, function(output){
-    res.send(output);
+  wipe_user(req.body.username, function(e, data){
+    console.log(e, data);
+    res.send({e:e,data:data});
   });
-  console.log('about to wipe', req.body);
 };

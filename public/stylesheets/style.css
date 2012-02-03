@@ -14,3 +14,11 @@ a {
 #wipe-loading-img{
   opacity : 0.5;
 }
+
+#wipe-success{
+  display:none;
+}
+
+#wipe-error{
+  display:none;
+}

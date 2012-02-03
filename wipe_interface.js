@@ -174,5 +174,6 @@ db.open(function(e, db_client){
 };
 
 module.exports = function(username, cb){
+  console.log('commencing wipe of', username);
   wipe_user(username, cb); 
 };

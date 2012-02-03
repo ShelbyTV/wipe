@@ -5,7 +5,10 @@
 
 var express = require('express')
   , routes = require('./routes')
-  , require_login = require('./lib/require_login.js');
+  , require_login = require('./lib/require_login.js')
+  , conf = require('./conf')
+  , DB = require('./lib/init_db')(conf.db)
+  , DB_CLIENT;
 
 var app = module.exports = express.createServer();
 
@@ -35,7 +38,17 @@ app.configure('production', function(){
 app.get('/', require_login, routes.index);
 app.post('/login', routes.login);
 app.get('/wipe',require_login, routes.render_wipe);
-app.post('/wipe',require_login, routes.wipe_user);
+app.post('/wipe',require_login, function(req, res){
+  routes.wipe_user(req, res, DB_CLIENT);
+});
 
-app.listen(3006);
-console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
+console.log('initializing server ... connecting to DB');
+DB.open(function(e, client){
+  if (e){
+    console.error(e);
+    process.exit();
+  }
+  DB_CLIENT = client;
+  app.listen(3006);
+  console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
+});
